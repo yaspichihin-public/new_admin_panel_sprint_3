@@ -1,0 +1,13 @@
+# Git
+.git
+
+# Pycharm
+.idea
+
+# Python
+__pycache__
+
+# Docker files
+django_app/Dockerfile.django_app
+postgres/Dockerfile.postgres
+nginx/Dockerfile.nginx

@@ -1,0 +1,36 @@
+FROM python:3.10-slim
+EXPOSE 8000
+
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+ENV DJANGO_SETTINGS_MODULE 'django_app.settings'
+
+# Перенос файлов в контейнер
+WORKDIR /opt/django_app
+COPY django_app .
+COPY requirements.txt .
+COPY .env .
+
+# Добавление пользователя и передача ему прав на файлы
+# RUN \
+#     groupadd -r app_user && \
+#     useradd -d /opt/django_app -r -g app_user app_user && \
+#     chown app_user:app_user -R /opt/django_app
+
+# Установка зависимостей
+RUN \
+    apt-get update && \
+    apt-get -y --no-install-recommends install libpq-dev=15.3-0+deb12u1 gcc=4:12.2.0-3 curl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    pip install --no-cache-dir --upgrade pip==23.2 && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Переход в контекст пользователя
+# USER app_user
+
+# Сделать скрипты запускаемыми
+RUN chmod a+x /opt/django_app/docker/*.sh
+
+# Запуск скрипта при запуске контейнера
+ENTRYPOINT ["/opt/django_app/docker/entrypoint.sh"]

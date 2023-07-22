@@ -1,0 +1,14 @@
+# Git
+.git
+
+# PyCharm
+.idea
+
+# Python
+__pycache__
+
+# Environment
+.env
+
+# Postgres files
+postgres/.env.postgres
