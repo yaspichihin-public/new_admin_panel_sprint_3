@@ -60,8 +60,15 @@ services:
       dockerfile: elastic/Dockerfile.elastic
     container_name: elastic
     restart: always
-    ports:
-      - '9200:9200'
+    env_file:
+      - elastic/.env.elastic
+
+  etl_app:
+    build:
+      context: .
+      dockerfile: etl_app/Dockerfile.etl_app
+    container_name: etl_app
+    restart: always
 
 volumes:
   static-volume:

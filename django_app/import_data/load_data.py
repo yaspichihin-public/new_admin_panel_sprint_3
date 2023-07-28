@@ -18,7 +18,7 @@ logging.basicConfig(
     filename='load_data.log',
     encoding='utf-8',
 )
-logger = logging.getLogger('etl')
+logger = logging.getLogger('etl_app')
 
 
 class MultipleInsertError(Exception):
@@ -416,7 +416,7 @@ if __name__ == '__main__':
 
     # Данные для подключения к PostgreSQL
     pg_database_config = {
-        'dbname': os.environ.get('POSTGRES_DB_NAME'),
+        'database': os.environ.get('POSTGRES_DB_NAME'),
         'user': os.environ.get('POSTGRES_DB_USER'),
         'password':  os.environ.get('POSTGRES_DB_PASS'),
         'host': os.environ.get('POSTGRES_DB_HOST'),

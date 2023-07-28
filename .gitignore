@@ -12,3 +12,9 @@ __pycache__
 
 # Postgres files
 postgres/.env.postgres
+
+# Elastic files
+elastic/.env.elastic
+
+# ETL
+etl_app/state_storage.json

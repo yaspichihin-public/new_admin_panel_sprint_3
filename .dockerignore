@@ -7,7 +7,15 @@
 # Python
 __pycache__
 
+# Env
+elastic/.env.elastic
+
+# etl_app
+etl_app/state_storage.json
+
 # Docker files
 django_app/Dockerfile.django_app
 postgres/Dockerfile.postgres
 nginx/Dockerfile.nginx
+elastic/Dockerfile.elastic
+etl_app/Dockerfile.etl_app
