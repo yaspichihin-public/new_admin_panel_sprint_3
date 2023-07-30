@@ -64,4 +64,4 @@ class State:
     def get_state(self, key: str) -> Any:
         """Получить состояние по определённому ключу."""
         state = self.storage.retrieve_state()
-        return state.get(key)
+        return state.get(key, '')

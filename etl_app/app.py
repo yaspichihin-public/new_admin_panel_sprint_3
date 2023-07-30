@@ -23,6 +23,11 @@ from etl_app.load.utils import (
 
 
 def load_state(etl_state_filename: str) -> dict:
+    """Загрузка состояния.
+
+    :param etl_state_filename: Имя файла для загрузки состояния.
+    :return: Возвращает словарь состояний.
+    """
     logger.info(f' -> Этап получение состояния')
     storage = JsonFileStorage(etl_state_filename)
     state = State(storage)
@@ -46,7 +51,15 @@ def load_state(etl_state_filename: str) -> dict:
     return result
 
 
-def extract(state, extract_batch=100) -> tuple[list[Any], dict]:
+def extract(state: dict, extract_batch: int = 100) -> tuple[list[Any], dict]:
+    """Загрузка данных.
+
+    :param state: Словарь состояний для таблиц из которых извлекаем данные.
+    :param extract_batch: Сколько записей собирать при изменении состояния по таблицам.
+    :return: Возвращает кортеж из списка с данными из БД и словарь состояний.
+             Данных в списке может быть более 100 строк т.к. изменение 1 жанра, может
+             повлечь изменения более 100 фильмов, данным моментом по задаче пренебрегаем.
+    """
     logger.info(f' -> Этап извлечения данных')
 
     # Получения объекта базы данных movies
@@ -92,6 +105,11 @@ def extract(state, extract_batch=100) -> tuple[list[Any], dict]:
 
 
 def transform(extracted_data: List[Any]) -> List[Movie]:
+    """Трансформация данных.
+
+    :param extracted_data: Список с данными из БД.
+    :return: Список сгруппированных данных по фильмам в объектах Movie.
+    """
     logger.info(f' -> Этап трансформации данных')
 
     # Список для результата трансформации
@@ -138,14 +156,8 @@ def transform(extracted_data: List[Any]) -> List[Movie]:
 
             if not filmwork_id:
                 filmwork_id = filmwork.fw_id
-
-            if not filmwork_imdb_rating:
                 filmwork_imdb_rating = filmwork.rating
-
-            if not filmwork_title:
                 filmwork_title = filmwork.title
-
-            if not filmwork_description:
                 filmwork_description = filmwork.description
 
             if filmwork.name not in filmwork_genre:
@@ -186,10 +198,19 @@ def transform(extracted_data: List[Any]) -> List[Movie]:
 
 
 def load(transformed_data: List[Movie], load_batch=100) -> None:
+    """Загрузка данных.
+
+    :param transformed_data: Список сгруппированных данных по фильмам в объектах Movie.
+    :param load_batch: Размер данных которые будем загружать в Elasticsearch за итерацию.
+    """
     logger.info(f' -> Этап загрузки данных')
 
     # Создадим индекс movie если его не было
-    create_index_movie(es_url_with_index=settings.es_url_with_index, es_index_file=settings.ELASTIC_INDEX_FILE)
+    create_index_movie(
+        es_url_with_index=settings.es_url_with_index,
+        es_index_file=settings.ELASTIC_INDEX_FILE,
+        es_index_timeout=settings.ELASTIC_INDEX_TIMEOUT,
+    )
 
     logger.info(f' - Загрузки данных')
     # Загрузка данных в Elasticsearch
@@ -203,7 +224,11 @@ def load(transformed_data: List[Movie], load_batch=100) -> None:
     logger.info(f' <- Этап загрузки данных')
 
 
-def save_state(state_dict) -> None:
+def save_state(state_dict: dict) -> None:
+    """Сохранение состояния.
+
+    :param state_dict: Словарь состояний после итерации ETL.
+    """
     logger.info(f' -> Этап сохранение состояния')
     try:
         storage = JsonFileStorage(settings.ETL_STATE_FILENAME)
@@ -217,7 +242,13 @@ def save_state(state_dict) -> None:
     logger.info(f' <- Этап сохранение состояния')
 
 
-def main(timeout_sec=5, extract_batch=10, load_batch=10):
+def main(timeout_sec: int = 5, extract_batch: int = 10, load_batch: int = 10) -> None:
+    """Основной цикл ETL.
+
+    :param timeout_sec: Пауза перед итерациями в секундах.
+    :param extract_batch: Размер для выгрузки данных за раз.
+    :param load_batch: Размер для загрузки данных за раз.
+    """
 
     while True:
 

@@ -1,3 +1,5 @@
+"""Настройка логгера для ETL приложения"""
+
 import logging
 from etl_app.config import settings
 
@@ -9,7 +11,6 @@ logging.basicConfig(
     handlers=(console_out,),
     level=settings.DEBUG_LEVEL,
     format='%(asctime)s %(levelname)s %(funcName)s %(message)s',
-    # format='%(asctime)s %(levelname)s %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
     encoding='utf-8',
 )

@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     ELASTIC_PORT: str
     ELASTIC_INDEX: str
     ELASTIC_INDEX_FILE: str
+    ELASTIC_INDEX_TIMEOUT: int
 
     # ETL
     ETL_STATE_FILENAME: str

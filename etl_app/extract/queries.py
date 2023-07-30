@@ -1,4 +1,10 @@
-def get_filmworks_query(state_modified=None, batch=100) -> str:
+def get_filmworks_query(state_modified: str = '', batch: int = 100) -> str:
+    """Подготовка SQL запроса для получения измененных фильмов.
+
+    :param state_modified: Последняя обработанная запись.
+    :param batch: Сколько записей за раз запрашивать.
+    :return: Подготовленный SQL запрос.
+    """
     if state_modified:
         filmworks_query = f"""
         select id, modified from content.film_work
@@ -13,7 +19,13 @@ def get_filmworks_query(state_modified=None, batch=100) -> str:
     return filmworks_query
 
 
-def get_persons_query(state_modified=None, batch=100) -> str:
+def get_persons_query(state_modified: str = '', batch: int = 100) -> str:
+    """Подготовка SQL запроса для получения измененных участников фильмов.
+
+    :param state_modified: Последняя обработанная запись.
+    :param batch: Сколько записей за раз запрашивать.
+    :return: Подготовленный SQL запрос.
+    """
     if state_modified:
         persons_query = f"""
         select id, modified from content.person
@@ -28,7 +40,13 @@ def get_persons_query(state_modified=None, batch=100) -> str:
     return persons_query
 
 
-def get_genres_query(state_modified=None, batch=100) -> str:
+def get_genres_query(state_modified: str = '', batch: int = 100) -> str:
+    """Подготовка SQL запроса для получения измененных жанров фильмов.
+
+    :param state_modified: Последняя обработанная запись.
+    :param batch: Сколько записей за раз запрашивать.
+    :return: Подготовленный SQL запрос.
+    """
     if state_modified:
         persons_query = f"""
         select id, modified from content.genre
@@ -44,6 +62,11 @@ def get_genres_query(state_modified=None, batch=100) -> str:
 
 
 def get_filmworks_query_by_person_uuid(persons: str) -> str:
+    """Подготовка SQL запроса для получения фильмов на которые повлияло изменение их участников.
+
+    :param persons: Строка UUID участников фильмов через запятую.
+    :return: Подготовленный SQL запрос.
+    """
     filmworks_query = f"""
     select fw.id, modified
     from content.film_work fw
@@ -56,6 +79,11 @@ def get_filmworks_query_by_person_uuid(persons: str) -> str:
 
 
 def get_filmworks_query_by_genre_uuid(genres: str) -> str:
+    """Подготовка SQL запроса для получения фильмов на которые повлияло изменение жанра.
+
+    :param genres: Строка UUID жанров фильмов через запятую.
+    :return: Подготовленный SQL запрос.
+    """
     filmworks_query = f"""
     select fw.id, modified
     from content.film_work fw
@@ -68,6 +96,11 @@ def get_filmworks_query_by_genre_uuid(genres: str) -> str:
 
 
 def get_filmworks_additional_query_by_filmwork_uuid(filmworks: str) -> str:
+    """Подготовка SQL запроса для получения дополнительной информации по фильмам, которые изменились.
+
+    :param filmworks: Строка UUID фильмов через запятую, для которых требуется собрать дополнительную информацию.
+    :return: Подготовленный SQL запрос.
+    """
     filmworks_additional_query = f"""
     select
         fw.id as fw_id, 
