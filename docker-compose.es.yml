@@ -1,0 +1,9 @@
+version: '3'
+services:
+
+  etl_app:
+    build:
+      context: .
+      dockerfile: etl_app/Dockerfile.etl_app
+    container_name: etl_app
+    restart: always

@@ -1,45 +1,27 @@
-import inspect
-import os
 from time import sleep
 import requests
 import json
 from backoff import on_exception, expo
-from dotenv import load_dotenv
 from elasticsearch import Elasticsearch
 from elasticsearch.helpers import bulk
 
-# Загрузка данных из окружения для подключения
-load_dotenv()
-elastic_url = os.getenv('ELASTIC_HOST')
-elastic_port = os.getenv('ELASTIC_PORT')
-index = os.getenv('ELASTIC_INDEX')
-index_file = os.getenv('ELASTIC_INDEX_FILE')
-
 
 @on_exception(expo, Exception)
-def check_index(
-        elastic_url=elastic_url,
-        elastic_port=elastic_port,
-        index=index,
-):
+def check_index(es_url_with_index: str) -> bool:
     # logger.info(f'{inspect.currentframe().f_code.co_name} -> Проверка индекса {elastic_url}:{elastic_port}/{index}')
-    r = requests.get( f'{elastic_url}:{elastic_port}/{index}')
+    r = requests.get(es_url_with_index)
     # logger.info(f'{inspect.currentframe().f_code.co_name} <- Проверка индекса завершилась с кодом {r.status_code}')
-    return r.status_code
+    return r.status_code == 200
 
 
 @on_exception(expo, Exception)
-def create_index_movie(
-        elastic_url=elastic_url,
-        elastic_port=elastic_port,
-        index=index,
-):
+def create_index_movie(es_url_with_index: str, es_index_file: str) -> None:
     # logger.info(f'{inspect.currentframe().f_code.co_name} -> Поиск индекса {index} в {elastic_url}:{elastic_port}')
 
-    while check_index(elastic_url, elastic_port, index) != 200:
+    while not check_index(es_url_with_index):
         # logger.warning(f'{inspect.currentframe().f_code.co_name} <- Индекс не обнаружен, попытка создать индекс')
 
-        with open(index_file, encoding='utf-8') as file:
+        with open(es_index_file, encoding='utf-8') as file:
             data = json.load(file)
 
         headers = {
@@ -47,12 +29,13 @@ def create_index_movie(
             'charset': 'UTF-8',
         }
 
-        r = requests.put(
-            f'{elastic_url}:{elastic_port}/{index}',
+        requests.put(
+            es_url_with_index,
             data=json.dumps(data),
             headers=headers
         )
-        sleep(1)
+
+        sleep(5)
 
     # logger.info(f'{inspect.currentframe().f_code.co_name} <- Индекс {index} доступен')
 
@@ -81,14 +64,6 @@ def get_prepared_data(batch_data):
 
 
 @on_exception(expo, Exception)
-def insert_data_to_elastic(
-        batch_prepared_data,
-        elastic_url=elastic_url,
-        elastic_port=elastic_port,
-):
-    es = Elasticsearch(f'{elastic_url}:{elastic_port}')
-
-    response = bulk(
-        es,
-        batch_prepared_data
-    )
+def insert_data_to_elastic(bulk_data, es_url) -> None:
+    es = Elasticsearch(es_url)
+    response = bulk(es, bulk_data)  # response можно потом обработать

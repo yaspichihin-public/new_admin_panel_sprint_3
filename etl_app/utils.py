@@ -33,9 +33,9 @@ class JsonFileStorage(BaseStorage):
 
     def save_state(self, state: Dict[str, Any]) -> None:
         """Сохранить состояние в хранилище."""
-        for k in state.keys():
-            if type(state.get(k)) is datetime:
-                state[k] = state[k].isoformat()
+        for key_state, value_state in state.items():
+            if type(value_state) is datetime:
+                state[key_state] = value_state.isoformat()
 
         with open(self.file_path, 'w') as file:
             json.dump(state, file)
@@ -46,7 +46,7 @@ class JsonFileStorage(BaseStorage):
         try:
             with open(self.file_path) as file:
                 state = json.load(file)
-        except:
+        except Exception as err:
             pass
         return state if state else dict()
 

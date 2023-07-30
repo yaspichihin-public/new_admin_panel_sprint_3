@@ -1,22 +1,56 @@
-FROM python:3.10-slim
+###########
+# BUILDER #
+###########
 
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
-ENV PYTHONPATH /etl_app
+# pull official base image
+FROM python:3.10-slim as builder
 
+# set work directory
 WORKDIR /etl_app
 
-COPY etl_app .
-COPY requirements.txt .
-COPY .env .
-
-# Установка зависимостей
+# install dependencies
 RUN \
     apt-get update && \
     apt-get -y --no-install-recommends install libpq-dev=15.3-0+deb12u1 gcc=4:12.2.0-3 curl && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/* && \
-    pip install --no-cache-dir -r requirements.txt
+    rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --upgrade pip &&  \
+    pip wheel --no-cache-dir --no-deps --wheel-dir /etl_app/wheels -r requirements.txt
+
+
+#########
+# FINAL #
+#########
+
+# pull official base image
+FROM python:3.10-slim
+
+# Flag to optimize container size a bit by removing runtime python cache
+ENV PYTHONDONTWRITEBYTECODE 1
+# This flag is important to output python logs correctly in docker!
+ENV PYTHONUNBUFFERED 1
+# The path where will be our module etl_app
+ENV PYTHONPATH="/"
+
+# set work directory
+WORKDIR /etl_app
+
+# install dependencies
+RUN \
+    apt-get update && \
+    apt-get -y --no-install-recommends install libpq-dev=15.3-0+deb12u1 gcc=4:12.2.0-3 curl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# copy only the dependencies that are needed for our application
+COPY --from=builder /etl_app/wheels /etl_app/wheels
+RUN pip install --no-cache /etl_app/wheels/*
+
+# copy source files
+COPY etl_app .
+COPY .env .
 
 # Сделать скрипты запускаемыми
 RUN chmod a+x /etl_app/*.sh

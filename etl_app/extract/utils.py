@@ -1,10 +1,9 @@
 import psycopg2
 from psycopg2.extras import NamedTupleCursor
 from backoff import on_exception, expo
-import os
-from dotenv import load_dotenv
 
-from .queries import (
+from etl_app.config import settings
+from etl_app.extract.queries import (
     get_filmworks_query,
     get_persons_query,
     get_genres_query,
@@ -12,6 +11,7 @@ from .queries import (
     get_filmworks_query_by_genre_uuid,
     get_filmworks_additional_query_by_filmwork_uuid,
 )
+
 
 class PostgresDB:
 
@@ -56,8 +56,11 @@ class PostgresDB:
 
     @on_exception(expo, Exception)
     def execute(self, sql: str):
-        self._cursor.execute(sql)
-        return self._cursor.fetchall()
+        try:
+            self._cursor.execute(sql)
+            return self._cursor.fetchall()
+        except Exception as err:
+            self._connection.rollback()
 
     @on_exception(expo, Exception)
     def close(self):
@@ -74,16 +77,13 @@ class PostgresDB:
 
 
 def get_movies_database():
-    # Загрузка данных из окружения для подключения
-    load_dotenv()
-
     # Подключаемся к базе данных
     movies_db = PostgresDB(
-        user=os.environ.get('POSTGRES_DB_USER'),
-        password=os.environ.get('POSTGRES_DB_PASS'),
-        host=os.environ.get('POSTGRES_DB_HOST'),
-        port=os.environ.get('POSTGRES_DB_PORT'),
-        database=os.environ.get('POSTGRES_DB_NAME'),
+        user=settings.POSTGRES_DB_USER,
+        password=settings.POSTGRES_DB_PASS,
+        host=settings.POSTGRES_DB_HOST,
+        port=settings.POSTGRES_DB_PORT,
+        database=settings.POSTGRES_DB_NAME,
     )
     return movies_db
 

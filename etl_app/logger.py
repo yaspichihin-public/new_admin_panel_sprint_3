@@ -1,16 +1,15 @@
-import os
 import logging
-from dotenv import load_dotenv
-
-load_dotenv()
+from etl_app.config import settings
 
 # handlers
 console_out = logging.StreamHandler()
 
+# config
 logging.basicConfig(
     handlers=(console_out,),
-    level=os.environ.get('DEBUG_LEVEL'),
-    format='%(asctime)s %(levelname)s %(message)s',
+    level=settings.DEBUG_LEVEL,
+    format='%(asctime)s %(levelname)s %(funcName)s %(message)s',
+    # format='%(asctime)s %(levelname)s %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
     encoding='utf-8',
 )

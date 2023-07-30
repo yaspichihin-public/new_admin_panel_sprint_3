@@ -4,11 +4,13 @@ docker compose  --file .\docker-compose.yml up --build
 Проверка запуска проекта:\
 docker compose ps
 
-| NAME  | IMAGE    | COMMAND                | SERVICE | CREATED    | STATUS              | PORTS              |
-|-------|----------|------------------------|---------|------------|---------------------|--------------------|
-| app   | ...app   | "/opt/django_app/doc…" | app     | 57 sec ago | Up 50 sec (healthy) | 8000/tcp           |
-| db    | ...db    | "docker-entrypoint.s…" | db      | 57 sec ago | Up 56 sec (healthy) | 5432/tcp           |
-| nginx | ...nginx | "/docker-entrypoint.…" | nginx   | 57 sec ago | Up 45 sec (healthy) | 0.0.0.0:80->80/tcp |
+| NAME    | IMAGE      | COMMAND                | SERVICE | CREATED    | STATUS              | PORTS              |
+|---------|------------|------------------------|---------|------------|---------------------|--------------------|
+| app     | ...app     | "/opt/django_app/doc…" | app     | 57 sec ago | Up 50 sec (healthy) | 8000/tcp           |
+| db      | ...db      | "docker-entrypoint.s…" | db      | 57 sec ago | Up 56 sec (healthy) | 5432/tcp           |
+| nginx   | ...nginx   | "/docker-entrypoint.…" | nginx   | 57 sec ago | Up 45 sec (healthy) | 0.0.0.0:80->80/tcp |
+| elastic | ...elastic | "/bin/tini -- /usr/l…" | elastic | 57 sec ago | Up 45 sec           | 9200/tcp, 9300/tcp |
+| etl_app | ...etl_app | "/etl_app/entrypoint…" | etl_app | 57 sec ago | Up 45 sec           |                    |
 
 Проверки доступности админ панели:\
 http://127.0.0.1/admin/login/?next=/admin/
@@ -31,6 +33,8 @@ docker compose ps
 | db      | ...db      | "docker-entrypoint.s…" | db      | 57 sec ago | Up 56 sec (healthy) | 0.0.0.0:5432->5432/tcp         |
 | nginx   | ...nginx   | "/docker-entrypoint.…" | nginx   | 57 sec ago | Up 45 sec (healthy) | 0.0.0.0:80->80/tcp             |
 | openapi | ...openapi | "/docker-entrypoint.…" | openapi | 57 sec ago | Up 45 sec (healthy) | 80/tcp, 0.0.0.0:8080->8080/tcp |
+| elastic | ...elastic | "/bin/tini -- /usr/l…" | elastic | 57 sec ago | Up 45 sec           | 9200/tcp, 9300/tcp             |
+| etl_app | ...etl_app | "/etl_app/entrypoint…" | etl_app | 57 sec ago | Up 45 sec           |                                |
 
 Пересборка после изменения в проекте:\
 docker compose  --file .\docker-compose.dev.yml down && docker compose  --file .\docker-compose.dev.yml up --build

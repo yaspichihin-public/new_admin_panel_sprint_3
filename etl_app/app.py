@@ -1,30 +1,53 @@
-import inspect
+from itertools import groupby
 from time import sleep
 from typing import List, Any
 
-from logger import logger
-from utils import JsonFileStorage, State
-from extract.utils import (
+from etl_app.config import settings
+from etl_app.logger import logger
+from etl_app.utils import (
+    JsonFileStorage,
+    State,
+)
+from etl_app.extract.utils import (
     get_movies_database,
     get_filmworks,
     get_filmworks_by_changed_persons,
     get_filmworks_by_changed_genre,
 )
-from transfrom.transform_dataclasses import Movie
-from load.utils import (
+from etl_app.transfrom.transform_dataclasses import Movie
+from etl_app.load.utils import (
     create_index_movie,
     get_prepared_data,
     insert_data_to_elastic,
 )
 
 
-def extract(
-        state_filmwork_modified=None,
-        state_person_modified=None,
-        state_genre_modified=None,
-        extract_batch=100,
-) -> tuple[list[Any], Any, Any, Any]:
-    logger.info(f'{inspect.currentframe().f_code.co_name} -> Начало этапа извлечения данных')
+def load_state(etl_state_filename: str) -> dict:
+    logger.info(f' -> Этап получение состояния')
+    storage = JsonFileStorage(etl_state_filename)
+    state = State(storage)
+
+    state_filmwork_modified = state.get_state('state_filmwork_modified')
+    logger.info(f' - state_filmwork_modified: {state_filmwork_modified}')
+
+    state_person_modified = state.get_state('state_person_modified')
+    logger.info(f' - state_person_modified: {state_person_modified}')
+
+    state_genre_modified = state.get_state('state_genre_modified')
+    logger.info(f' - state_genre_modified: {state_genre_modified}')
+
+    logger.info(f' <- Этап получение состояния')
+
+    result = {
+        'state_filmwork_modified': state_filmwork_modified,
+        'state_person_modified': state_person_modified,
+        'state_genre_modified': state_genre_modified,
+    }
+    return result
+
+
+def extract(state, extract_batch=100) -> tuple[list[Any], dict]:
+    logger.info(f' -> Этап извлечения данных')
 
     # Получения объекта базы данных movies
     movies_db = get_movies_database()
@@ -32,54 +55,61 @@ def extract(
     # Создание списка хранения извлеченных данных
     extracted_data = list()
 
-    logger.info(f'{inspect.currentframe().f_code.co_name} - Кейс изменение записей в таблице film_work')
+    logger.info(f' - Кейс изменение записей в таблице film_work')
     filmwork_data, state_filmwork_modified = get_filmworks(
         movies_db,
-        state_filmwork_modified=state_filmwork_modified,
+        state_filmwork_modified=state.get('state_filmwork_modified'),
         batch=extract_batch
     )
     extracted_data += filmwork_data
 
-    logger.info(f'{inspect.currentframe().f_code.co_name} - Кейс изменение записей в таблице person')
+    logger.info(f' - Кейс изменение записей в таблице person')
     person_data, state_person_modified = get_filmworks_by_changed_persons(
         movies_db,
-        state_person_modified=state_person_modified,
+        state_person_modified=state.get('state_person_modified'),
         batch=extract_batch
     )
     extracted_data += person_data
 
-    logger.info(f'{inspect.currentframe().f_code.co_name} - Кейс изменение записей в таблице genre')
+    logger.info(f' - Кейс изменение записей в таблице genre')
     genre_data, state_genre_modified = get_filmworks_by_changed_genre(
         movies_db,
-        state_genre_modified=state_genre_modified,
+        state_genre_modified=state.get('state_genre_modified'),
         batch=extract_batch
     )
     extracted_data += genre_data
 
     movies_db.close()
 
-    logger.info(f'{inspect.currentframe().f_code.co_name} <- Конец этапа извлечения данных')
-    return extracted_data, state_filmwork_modified, state_person_modified, state_genre_modified
+    state = {
+        'state_filmwork_modified': state_filmwork_modified,
+        'state_person_modified': state_person_modified,
+        'state_genre_modified': state_genre_modified,
+    }
+
+    logger.info(f' <- Этап извлечения данных')
+    return extracted_data, state
 
 
 def transform(extracted_data: List[Any]) -> List[Movie]:
-    logger.info(f'{inspect.currentframe().f_code.co_name} -> Начало этапа трансформации данных')
+    logger.info(f' -> Этап трансформации данных')
 
     # Список для результата трансформации
     transformed_data = list()
 
-    # Получить уникальные идентификаторы фильмов для группировки данных
-    filmwork_uuids = set(filmwork.fw_id for filmwork in extracted_data)
+    # Предварительно сортируем данные для применения groupby
+    data = sorted(extracted_data, key=lambda x: x.fw_id)
 
-    # Т.к. не понятно что будет дальше по курсу пример из теории не менял
-    # Поэтому нет агрегации данных на уровне SQL в extract и тут O(N**2)
-    for filmwork_uuid in filmwork_uuids:
+    # Группируем данные
+    for key, group_items in groupby(data, key=lambda x: x.fw_id):
+        # print(key)
+        # ffaec4b6-477d-4247-add0-dbe2ad91b3dd
 
+        # Зададим данные по умолчанию
         filmwork_id = ''
         filmwork_imdb_rating = 0.0
         filmwork_title = ''
         filmwork_description = ''
-
         filmwork_genre = list()
         filmwork_director = list()
         filmwork_actors_names = list()
@@ -87,46 +117,53 @@ def transform(extracted_data: List[Any]) -> List[Movie]:
         filmwork_actors = list()
         filmwork_writers = list()
 
-        for filmwork in extracted_data:
+        # Заполним данные из группированных строк
+        for filmwork in group_items:
 
-            if filmwork.fw_id == filmwork_uuid:
+            # print(filmwork)
+            # Record(
+            #   fw_id='9d284e83-21f0-4073-aac0-4abee51193d8',
+            #   title='Star Trek: Insurrection',
+            #   description="While on a mission ...",
+            #   rating=6.4,
+            #   type='movie',
+            #   created=datetime.datetime(2021, 6, 16, 20, 14, 9, 223239, tzinfo=datetime.timezone.utc),
+            #   modified=datetime.datetime(2021, 6, 16, 20, 14, 9, 223256, tzinfo=datetime.timezone.utc),
+            #   role='actor',
+            #   id='972c86a5-16f4-432b-b9b3-54965291ddb0',
+            #   full_name='Brent Spiner',
+            #   name='Adventure'
+            # )
+            # ...
 
-                # Пример записи filmwork
-                # Record(
-                #   fw_id='9d284e83-21f0-4073-aac0-4abee51193d8',
-                #   title='Star Trek: Insurrection',
-                #   description="While on a mission ...",
-                #   rating=6.4,
-                #   type='movie',
-                #   created=datetime.datetime(2021, 6, 16, 20, 14, 9, 223239, tzinfo=datetime.timezone.utc),
-                #   modified=datetime.datetime(2021, 6, 16, 20, 14, 9, 223256, tzinfo=datetime.timezone.utc),
-                #   role='actor',
-                #   id='972c86a5-16f4-432b-b9b3-54965291ddb0',
-                #   full_name='Brent Spiner',
-                #   name='Adventure'
-                # )
-
+            if not filmwork_id:
                 filmwork_id = filmwork.fw_id
+
+            if not filmwork_imdb_rating:
                 filmwork_imdb_rating = filmwork.rating
+
+            if not filmwork_title:
                 filmwork_title = filmwork.title
+
+            if not filmwork_description:
                 filmwork_description = filmwork.description
 
-                if filmwork.name not in filmwork_genre:
-                    filmwork_genre.append(filmwork.name)
+            if filmwork.name not in filmwork_genre:
+                filmwork_genre.append(filmwork.name)
 
-                if filmwork.role == 'director' and \
-                        filmwork.full_name not in filmwork_director:
-                    filmwork_director.append(filmwork.full_name)
+            if filmwork.role == 'director' and \
+                    filmwork.full_name not in filmwork_director:
+                filmwork_director.append(filmwork.full_name)
 
-                elif filmwork.role == 'actor' and \
-                        filmwork.id not in list(actor.get('id') for actor in filmwork_actors):
-                    filmwork_actors.append({'id': filmwork.id, 'name': filmwork.full_name})
-                    filmwork_actors_names.append(filmwork.full_name)
+            elif filmwork.role == 'actor' and \
+                    filmwork.id not in list(actor.get('id') for actor in filmwork_actors):
+                filmwork_actors.append({'id': filmwork.id, 'name': filmwork.full_name})
+                filmwork_actors_names.append(filmwork.full_name)
 
-                elif filmwork.role == 'writer' and \
-                        filmwork.id not in list(writer.get('id') for writer in filmwork_writers):
-                    filmwork_writers.append({'id': filmwork.id, 'name': filmwork.full_name})
-                    filmwork_writers_names.append(filmwork.full_name)
+            elif filmwork.role == 'writer' and \
+                    filmwork.id not in list(writer.get('id') for writer in filmwork_writers):
+                filmwork_writers.append({'id': filmwork.id, 'name': filmwork.full_name})
+                filmwork_writers_names.append(filmwork.full_name)
 
         # Упаковываем данные в датакласс для elastic
         filmwork_elastic = Movie(
@@ -144,80 +181,69 @@ def transform(extracted_data: List[Any]) -> List[Movie]:
 
         transformed_data.append(filmwork_elastic)
 
-    logger.info(f'{inspect.currentframe().f_code.co_name} <- Конец этапа трансформации данных')
+    logger.info(f' <- Этап трансформации данных')
     return transformed_data
 
 
 def load(transformed_data: List[Movie], load_batch=100) -> None:
-    logger.info(f'{inspect.currentframe().f_code.co_name} -> Начало этапа загрузки данных')
+    logger.info(f' -> Этап загрузки данных')
 
     # Создадим индекс movie если его не было
-    create_index_movie()
+    create_index_movie(es_url_with_index=settings.es_url_with_index, es_index_file=settings.ELASTIC_INDEX_FILE)
 
-    logger.info(f'{inspect.currentframe().f_code.co_name} - Загрузки данных')
+    logger.info(f' - Загрузки данных')
     # Загрузка данных в Elasticsearch
     operations_count = len(transformed_data) // load_batch + 1
     for batch_number in range(operations_count):
         batch_data = transformed_data[load_batch * batch_number:load_batch*(batch_number+1)]
-        batch_prepared_data = get_prepared_data(batch_data)
-        insert_data_to_elastic(batch_prepared_data)
-    logger.info(f'{inspect.currentframe().f_code.co_name} - Загрузки данных завершена')
+        bulk_data = get_prepared_data(batch_data)
+        insert_data_to_elastic(bulk_data=bulk_data, es_url=settings.es_url)
+    logger.info(f' - Загрузки данных завершена')
 
-    logger.info(f'{inspect.currentframe().f_code.co_name} <- Конец этапа загрузки данных')
+    logger.info(f' <- Этап загрузки данных')
 
 
-def main(state_filename: str, timeout_sec=10, extract_batch=100, load_batch=1):
+def save_state(state_dict) -> None:
+    logger.info(f' -> Этап сохранение состояния')
+    try:
+        storage = JsonFileStorage(settings.ETL_STATE_FILENAME)
+        state = State(storage)
+        state.set_state(state_dict)
+        logger.info(f' - Успешное сохранение состояния')
+
+    except Exception as err:
+        logger.warning(f' - Ошибка сохранение состояния: {err}')
+
+    logger.info(f' <- Этап сохранение состояния')
+
+
+def main(timeout_sec=5, extract_batch=10, load_batch=10):
 
     while True:
 
         # Получение состояния
-        logger.info(f'{inspect.currentframe().f_code.co_name} -> Получение состояния')
-        storage = JsonFileStorage(state_filename)
-        state = State(storage)
-
-        state_filmwork_modified = state.get_state('state_filmwork_modified')
-        logger.info(f'{inspect.currentframe().f_code.co_name} - state_filmwork_modified: {state_filmwork_modified}')
-
-        state_person_modified = state.get_state('state_person_modified')
-        logger.info(f'{inspect.currentframe().f_code.co_name} - state_person_modified: {state_person_modified}')
-
-        state_genre_modified = state.get_state('state_genre_modified')
-        logger.info(f'{inspect.currentframe().f_code.co_name} - state_genre_modified: {state_genre_modified}')
-        logger.info(f'{inspect.currentframe().f_code.co_name} <- Состояние получено')
+        state = load_state(settings.ETL_STATE_FILENAME)
 
         # Извлекаем данные
-        extracted_data, state_filmwork_modified, state_person_modified, state_genre_modified = extract(
-            state_filmwork_modified,
-            state_person_modified,
-            state_genre_modified,
-            extract_batch=extract_batch,
-        )
+        extracted_data, state = extract(state=state, extract_batch=extract_batch)
 
         # Преобразуем данные
         transformed_data = transform(extracted_data)
 
         # Загрузка данных
-        load(
-            transformed_data,
-            load_batch=load_batch,
-        )
+        load(transformed_data, load_batch=load_batch)
 
         # Сохранение состояния
-        logger.info(f'{inspect.currentframe().f_code.co_name} -> Сохранение состояния')
-        storage = JsonFileStorage(state_filename)
-        state = State(storage)
+        save_state(state)
 
-        state.set_state(
-            {
-                'state_filmwork_modified': state_filmwork_modified,
-                'state_person_modified': state_person_modified,
-                'state_genre_modified': state_genre_modified
-            }
-        )
-        logger.info(f'{inspect.currentframe().f_code.co_name} <- Состояние сохранено')
-
+        # Пауза перед следующим циклом
+        logger.info(f' Пауза перед итерациями {timeout_sec} секунд')
         sleep(timeout_sec)
 
 
 if __name__ == '__main__':
-    main('state_storage.json', timeout_sec=3, extract_batch=100, load_batch=100)
+    main(
+        timeout_sec=settings.ETL_TIMEOUT_SEC,
+        extract_batch=settings.ETL_EXTRACT_BATCH,
+        load_batch=settings.ETL_LOAD_BATCH,
+    )
